@@ -23,13 +23,14 @@
 
      function sendImage() {
         var formData = new FormData();
-        formData.append("image", document.getElementById("upload").files[0]);
+        formData.append("file", document.getElementById("upload").files[0]);
         // sleep(3000);
         jQuery.ajax({
             type: "POST",
             url: '/scan/',
             data: formData,
             processData: false,
+            contentType: false,
             async: false,
             success: function (data) {
                 // alert(data);
