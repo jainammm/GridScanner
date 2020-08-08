@@ -5,42 +5,32 @@ from config.model_config import model_params
 from predict.grpc_client import get_model_output
 
 import os
-from pdf2image import convert_from_bytes
-from PIL import Image
 import numpy as np
 import requests
 import json
 from datetime import datetime
 
 
-def predict(file):
-    content_type = file.content_type
-    file_name = file.filename
-    file_name, _ = os.path.splitext(file.filename)
-    file_name = file_name + '_' + str(datetime.now())
+def predict(image, filename):
+    '''
+    Process Image and get result from cutie model
+    '''
 
-    if content_type == 'application/pdf':
-        pages = convert_from_bytes(file.file.read())
-        image = pages[0]
-        file_name = file_name[:-3] + '.png'
-    elif content_type.startswith('image'):
-        image = Image.open(file.file)
-    else:
-        return 'unknown file type'
+    file_name, _ = os.path.splitext(filename)
+    file_name = file_name + '_' + str(datetime.now())
 
     os.mkdir(os.path.join('results', file_name))
     image.save(os.path.join('results', file_name, 'image.png'))
 
-    # json_data = get_text_boxes(image, file.filename)
-    with open('sample/Sample24_0.json') as f:
-        json_data = json.load(f)
+    # Run OCR On Image for Text Boxes
+    json_data = get_text_boxes(image, file_name)
 
     with open(os.path.join('results', file_name, 'ocr.json'), 'w') as fout:
         json.dump(json_data, fout)
 
     print("OCR done")
 
-    # False to provide a path with only test data
+    # Parse ocr data for model
     data_loader = DataLoader(json_data, model_params,
                              update_dict=False, load_dictionary=True)
 
@@ -53,14 +43,14 @@ def predict(file):
     fileName = data['file_name'][0]  # use one single file_name
     bboxes = data['bboxes'][fileName]
 
+    # Draw rectangle for detected classes on image
     vis_bbox(data_loader, image, np.array(data['grid_table'])[0],
              np.array(data['gt_classes'])[0], model_output_val, fileName,
-             np.array(bboxes), shape)
+             np.array(bboxes), shape, os.path.join('results', file_name, 'cutie_result.png'))
 
     logits = model_output_val.reshape([-1, data_loader.num_classes])
 
     grid_table = np.array(data['grid_table'])[0]
-    gt_classes = np.array(data['gt_classes'])[0]
     word_ids = data['word_ids'][fileName]
     data_input_flat = grid_table.reshape([-1])
 
@@ -69,6 +59,7 @@ def predict(file):
     final_output = []
     unique_id = []
 
+    # Get class label texts with high confidence 
     for i in range(len(data_input_flat)):
         if max(logits[i]) > c_threshold:
             inf_id = np.argmax(logits[i])
@@ -87,7 +78,8 @@ def predict(file):
                     for item in range(0, len(final_output)):
                         if(final_output[item]["id"] == word_ids[i]):
                             if final_output[item]["confidence"] < max(logits[i]):
-                                final_output[item]["confidence"] = max(logits[i])
+                                final_output[item]["confidence"] = max(
+                                    logits[i])
 
     payload = {
         "model_output": final_output,
@@ -97,17 +89,24 @@ def predict(file):
 
     url = "http://localhost:8001/getXLSX"
 
+    # Get resullt from Placeholder API
     response = requests.get(url,
                             json=payload
                             )
 
     response_body = response.content
+
+    # Store result for record
     with open(os.path.join('results', file_name, 'result.xlsx'), 'wb') as fout:
         fout.write(response_body)
 
     return os.path.join('results', file_name, 'result.xlsx')
 
+
 def idTotext(id, json_data):
+    '''
+    Get bbox and box text from box ID.
+    '''
     for text_box in json_data['text_boxes']:
         if text_box['id'] == id:
             return text_box['text'], text_box['bbox']

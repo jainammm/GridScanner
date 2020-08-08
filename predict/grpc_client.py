@@ -17,6 +17,9 @@ from config.model_config import model_params
 
 
 def get_model_output(data):
+    '''
+    Call tensorflow model server through grpc for model output
+    '''
 
     host, port, model, signature_name = \
         model_params.tensorflow_host, model_params.tensorflow_port, \

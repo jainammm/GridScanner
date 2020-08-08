@@ -12,9 +12,13 @@ except ImportError:
 
 c_threshold = 0.5
 
-def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, file_name, bboxes, shape):
+def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val,
+         file_name, bboxes, shape, output_filename):
+    '''
+    Draw rectangle for detected classes on image
+    '''
+
     data_input_flat = grid_table.reshape([-1])
-    labels = gt_classes.reshape([-1])
     logits = model_output_val.reshape([-1, data_loader.num_classes])
     bboxes = bboxes.reshape([-1])
     
@@ -24,12 +28,6 @@ def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, f
         shape = list(img.shape)
         
         bbox_pad = 1
-        gt_color = [[255, 250, 240], [152, 245, 255], [119,204,119], [100, 149, 237], 
-                    [192, 255, 62], [119,119,204], [114,124,114], [240, 128, 128], [255, 105, 180],
-                    [255, 250, 240], [152, 245, 255], [119,204,119], [100, 149, 237], 
-                    [192, 255, 62], [119,119,204], [114,124,114], [240, 128, 128], [255, 105, 180],
-                    [255, 250, 240], [152, 245, 255], [119,204,119], [100, 149, 237], 
-                    [192, 255, 62], [119,119,204], [114,124,114], [240, 128, 128]]
         inf_color = [[255, 250, 240], [152, 245, 255], [119,204,119], [100, 149, 237], 
                     [192, 255, 62], [119,119,204], [114,124,114], [240, 128, 128], [255, 105, 180],
                     [255, 250, 240], [152, 245, 255], [119,204,119], [100, 149, 237], 
@@ -37,7 +35,6 @@ def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, f
                     [255, 250, 240], [152, 245, 255], [119,204,119], [100, 149, 237], 
                     [192, 255, 62], [119,119,204], [114,124,114], [240, 128, 128]]
         
-        font_size = 0.5
         font = cv2.FONT_HERSHEY_COMPLEX
         ft_color = [50, 50, 250]
         
@@ -57,13 +54,6 @@ def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, f
                 y = shape[0] // data_loader.rows * row
                 w = shape[1] // data_loader.cols * 2
                 h = shape[0] // data_loader.cols * 2
-                
-            if data_input_flat[i] and labels[i]:
-                gt_id = labels[i]  
-                # try:       
-                #     cv2.rectangle(overlay_box, (x,y), (x+w,y+h), gt_color[gt_id], -1)
-                # except:
-                #     print(gt_id)
                     
             if max(logits[i]) > c_threshold:
                 inf_id = np.argmax(logits[i])
@@ -73,9 +63,6 @@ def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, f
                                   (x+bbox_pad+w,y+bbox_pad+h), inf_color[inf_id], max_len//768*2)
                     except:
                         print(inf_id)
-                
-            #text = data_loader.classes[gt_id] + '|' + data_loader.classes[inf_id]
-            #cv2.putText(img, text, (x,y), font, font_size, ft_color)  
         
         # legends
         w = shape[1] // data_loader.cols * 4
@@ -85,10 +72,6 @@ def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, f
             col = 0
             x = shape[1] // data_loader.cols * col
             y = shape[0] // data_loader.rows * row 
-            # try:
-            #     cv2.rectangle(img, (x,y), (x+w,y+h), gt_color[i], -1)
-            # except:
-            #     print(i)
             cv2.putText(img, data_loader.classes[i], (x+w,y+h), font, 0.8, ft_color)  
             
             row = i * 3 + 1
@@ -104,4 +87,4 @@ def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, f
         alpha = 0.4
         cv2.addWeighted(overlay_box, alpha, img, 1-alpha, 0, img)
         cv2.addWeighted(overlay_line, 1-alpha, img, 1, 0, img)
-        cv2.imwrite('results/' + file_name[:-4]+'.png', img)
+        cv2.imwrite(output_filename, img)

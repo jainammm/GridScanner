@@ -3,6 +3,10 @@ from io import BytesIO
 
 
 def ocr(image_data):
+    '''
+    Get OCR result from clovaa-ai
+    '''
+
     multipart_form_data = {
         'image': ('0.jpg', image_data),
     }
@@ -16,6 +20,10 @@ def ocr(image_data):
 
 
 def get_text_boxes(image, filename):
+    '''
+    Convert ocr output for model input
+    '''
+
     b = BytesIO()
     image.save(b, 'PNG')
     data = ocr(b.getvalue())
