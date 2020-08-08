@@ -15,7 +15,7 @@ def ocr(image_data):
     return response.json()['annotations']
 
 
-def get_text_boxes(image):
+def get_text_boxes(image, filename):
     b = BytesIO()
     image.save(b, 'PNG')
     data = ocr(b.getvalue())
@@ -26,7 +26,7 @@ def get_text_boxes(image):
     final_data['text_boxes'] = []
     final_data['fields'] = []
     final_data["global_attributes"] = {
-        "file_id": "Sample24_0.png"
+        "file_id": filename
     }
 
     for count, ob in enumerate(data):

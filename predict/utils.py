@@ -12,14 +12,14 @@ except ImportError:
 
 c_threshold = 0.5
 
-def vis_bbox(data_loader, file_prefix, grid_table, gt_classes, model_output_val, file_name, bboxes, shape):
+def vis_bbox(data_loader, pil_image, grid_table, gt_classes, model_output_val, file_name, bboxes, shape):
     data_input_flat = grid_table.reshape([-1])
     labels = gt_classes.reshape([-1])
     logits = model_output_val.reshape([-1, data_loader.num_classes])
     bboxes = bboxes.reshape([-1])
     
     max_len = 768*2 # upper boundary of image display size 
-    img = cv2.imread(join(file_prefix, file_name))
+    img = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
     if img is not None:    
         shape = list(img.shape)
         

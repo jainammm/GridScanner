@@ -52,10 +52,10 @@ class DataLoader():
         #self.classes = ['DontCare', 'VendorName', 'VendorTaxID', 'InvoiceDate', 'InvoiceNumber', 'ExpenseAmount', 'BaseAmount', 'TaxAmount', 'TaxRate'] # for Spanish project
         
         self.doc_path = ''
-        self.text_case = params.text_case 
-        self.tokenize = params.tokenize
+        self.text_case = False
+        self.tokenize = True
         if self.tokenize:
-            self.tokenizer = FullTokenizer('dict/vocab.txt', do_lower_case=not self.text_case)
+            self.tokenizer = FullTokenizer('predict/dict/vocab.txt', do_lower_case=not self.text_case)
         
         self.rows = self.encoding_factor # to be updated 
         self.cols = self.encoding_factor # to be updated 
