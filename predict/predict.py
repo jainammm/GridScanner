@@ -8,6 +8,8 @@ import os
 from pdf2image import convert_from_bytes
 from PIL import Image
 import numpy as np
+import requests
+
 
 def predict(file):
     content_type = file.content_type
@@ -22,7 +24,9 @@ def predict(file):
 
     json_data = get_text_boxes(image, file.filename)
 
-    data_loader = DataLoader(json_data, model_params, update_dict=False, load_dictionary=True) # False to provide a path with only test data
+    # False to provide a path with only test data
+    data_loader = DataLoader(json_data, model_params,
+                             update_dict=False, load_dictionary=True)
     num_words = max(20000, data_loader.num_words)
     num_classes = data_loader.num_classes
 
@@ -32,37 +36,55 @@ def predict(file):
     model_output_val = np.array(model_output_val)[0]
 
     shape = data['shape']
-    file_name = data['file_name'][0] # use one single file_name
+    file_name = data['file_name'][0]  # use one single file_name
     bboxes = data['bboxes'][file_name]
-    
-    vis_bbox(data_loader, image, np.array(data['grid_table'])[0], 
-            np.array(data['gt_classes'])[0], model_output_val, file_name, 
-            np.array(bboxes), shape)
+
+    vis_bbox(data_loader, image, np.array(data['grid_table'])[0],
+             np.array(data['gt_classes'])[0], model_output_val, file_name,
+             np.array(bboxes), shape)
 
     logits = model_output_val.reshape([-1, data_loader.num_classes])
 
-    grid_table = np.array(data['grid_table'])[0] 
+    grid_table = np.array(data['grid_table'])[0]
     gt_classes = np.array(data['gt_classes'])[0]
     word_ids = data['word_ids'][file_name]
     data_input_flat = grid_table.reshape([-1])
 
     c_threshold = 0.5
 
+    final_output = []
+
     for i in range(len(data_input_flat)):
-            if max(logits[i]) > c_threshold:
-                inf_id = np.argmax(logits[i])
-                if inf_id:
-                    try:
-                        print('----------')
-                        print(data_loader.classes[inf_id])
-                        print(idTotext(word_ids[i], json_data))
-                        print(max(logits[i]))
-                    except:
-                        pass
+        if max(logits[i]) > c_threshold:
+            inf_id = np.argmax(logits[i])
+            if inf_id and word_ids[i] != []:
+                final_output.append({
+                    "class_name": data_loader.classes[inf_id],
+                    "text": idTotext(word_ids[i], json_data),
+                    "bounding_box": bboxes[i],
+                    "confidence": max(logits[i])
+                })
+                # try:
+                #     print('----------')
+                #     print(data_loader.classes[inf_id])
+                #     print(idTotext(word_ids[i], json_data))
+                #     print(max(logits[i]))
+                # except:
+                #     pass
+
+    payload = {
+        "model_output": final_output
+    }
+
+    url = "http://localhost:8001/getXLSX"
+
+    response = requests.get(url,
+                            data=payload)
+
 
 def idTotext(id, json_data):
     for text_box in json_data['text_boxes']:
         if text_box['id'] == id:
             return text_box['text']
-    
+
     return None
