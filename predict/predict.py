@@ -9,6 +9,7 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 import numpy as np
 import requests
+import json
 
 
 def predict(file):
@@ -22,7 +23,11 @@ def predict(file):
     else:
         return 'unknown file type'
 
-    json_data = get_text_boxes(image, file.filename)
+    # json_data = get_text_boxes(image, file.filename)
+    with open('sample/Sample24_0.json') as f:
+        json_data = json.load(f)
+
+    print("OCR done")
 
     # False to provide a path with only test data
     data_loader = DataLoader(json_data, model_params,
@@ -53,27 +58,36 @@ def predict(file):
     c_threshold = 0.5
 
     final_output = []
+    unique_id = []
 
     for i in range(len(data_input_flat)):
         if max(logits[i]) > c_threshold:
             inf_id = np.argmax(logits[i])
             if inf_id and word_ids[i] != []:
-                final_output.append({
-                    "class_name": data_loader.classes[inf_id],
-                    "text": idTotext(word_ids[i], json_data),
-                    "bounding_box": bboxes[i],
-                    "confidence": max(logits[i])
-                })
-                # try:
-                #     print('----------')
-                #     print(data_loader.classes[inf_id])
-                #     print(idTotext(word_ids[i], json_data))
-                #     print(max(logits[i]))
-                # except:
-                #     pass
+                text, bounding_box = idTotext(word_ids[i], json_data)
+                print(word_ids[i])
+                if not(word_ids[i] in unique_id):
+                    final_output.append({
+                        "class_name": data_loader.classes[inf_id],
+                        "id": word_ids[i],
+                        "text": text,
+                        "bounding_box": bounding_box,
+                        "confidence": max(logits[i])
+                    })
+                    unique_id.append(word_ids[i])
+                    print ("jainam", word_ids[i])
+                else:
+                    for item in range(0, len(final_output)):
+                        if(final_output[item]["id"] == word_ids[i]):
+                            if final_output[item]["confidence"] < max(logits[i]):
+                                print(final_output[item]["confidence"], max(logits[i]))
+                                final_output[item]["confidence"] = max(logits[i])
+                                print('final ', final_output[item]["confidence"])
+                                print('came here')
 
     payload = {
-        "model_output": final_output
+        "model_output": final_output,
+        "all_classes": data_loader.classes
     }
 
     url = "http://localhost:8001/getXLSX"
@@ -82,10 +96,13 @@ def predict(file):
                             json=payload
                             )
 
+    response_body = response.content
+    with open('sample.xlsx', 'wb') as f:
+        f.write(response_body)
 
 def idTotext(id, json_data):
     for text_box in json_data['text_boxes']:
         if text_box['id'] == id:
-            return text_box['text']
+            return text_box['text'], text_box['bbox']
 
     return None
