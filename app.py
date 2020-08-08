@@ -8,6 +8,7 @@ from predict.predict import predict
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/results", StaticFiles(directory="results"), name="results")
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
@@ -16,5 +17,5 @@ async def root(request: Request):
 
 @app.post("/scan/")
 async def scan(file: UploadFile = File(...)):
-    predict(file)
-    return Response(status_code=200)
+    xlsx = predict(file)
+    return xlsx

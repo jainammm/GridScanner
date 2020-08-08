@@ -34,29 +34,33 @@
                 <img id="blah" src="#" alt="your image" />
                 <div class="input-group">
                     <form id="fileinfo" enctype="multipart/form-data" method="post" class="custom-file">
-                        <input type="file"  class="custom-file-input" id="upload">
+                        <input type="file" class="custom-file-input" id="upload">
                         <label class="custom-file-label" for="upload"><i class="ion-android-cloud-outline"></i>Choose
                             file</label>
                     </form>
                 </div>
-                <div class="loader"></div>
+                <div id="loader" class="loader"></div>
                 <button type="button" class="next action-button">Scan</button>
 
             </fieldset>
             <fieldset>
-                <h3>Create Security Questions</h3>
-                <h6>Please update your account with security questions</h6>
+                <h3>Scan Result Prepared in Excel File</h3>
+
+                <a id="xlsx_iframe" class="action-button">Download</a>
 
                 <div id="content"></div>
                 <button id="authorize-button" class="action-button" style="display: none;margin: auto;">Sign In To
                     Upload to
                     Drive</button>
                 <br>
-                <button id="signout-button" class="action-button" style="display: none;margin: auto;">Sign Out</button>
+                <button id="signout-button" class="action-button" style="display: none;margin: auto;">Sign Out from From
+                    Google</button>
                 <br>
                 <button id="upload-button" onclick="UploadToDrive()" class="action-button"
-                    style="display: none;margin: auto;">Upload</button>
-                    <br>
+                    style="display: none;margin: auto;">Upload to Drive</button>
+                <div id="loader1" class="loader"></div>
+                <div id="done"></div>
+                <br>
                 <button onclick="location.reload()" class="action-button">Finish</button>
             </fieldset>
         </div>
@@ -144,28 +148,44 @@
         }
 
         // Load the API and make an API call.  Display the results on the screen.
+        function GetFilename(url) {
+            var filename = url.split('/')
+            return filename[1];
+        }
+
         function UploadToDrive() {
-            var fileContent = 'sample text'; // As a sample, upload a text file.
-            var file = new Blob([fileContent], { type: 'text/plain' });
-            var metadata = {
-                'name': 'sampleName', // Filename at Google Drive
-                'mimeType': 'text/plain', // mimeType at Google Drive
-                'parents': [], // Folder ID at Google Drive
-            };
-
-            var accessToken = gapi.auth.getToken().access_token; // Here gapi is used for retrieving the access token.
-            var form = new FormData();
-            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            form.append('file', file);
-
+            $('#loader1').show();
+            var file;
             var xhr = new XMLHttpRequest();
-            xhr.open('post', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id');
-            xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
-            xhr.responseType = 'json';
-            xhr.onload = () => {
-                console.log(xhr.response.id); // Retrieve uploaded file ID.
+            xhr.open('GET', $("#xlsx_iframe").attr('href'), true);
+            xhr.responseType = 'blob';
+            xhr.onload = function (e) {
+                if (this.status == 200) {
+                    file = this.response;
+                    var metadata = {
+                        'name': GetFilename($("#xlsx_iframe").attr('href')) + '.xlsx', // Filename at Google Drive
+                        'mimeType': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // mimeType at Google Drive
+                        'parents': [], // Folder ID at Google Drive
+                    };
+
+                    var accessToken = gapi.auth.getToken().access_token; // Here gapi is used for retrieving the access token.
+                    var form = new FormData();
+                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                    form.append('file', file);
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('post', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id');
+                    xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+                    xhr.responseType = 'json';
+                    xhr.onload = () => {
+                        console.log(xhr.response.id); // Retrieve uploaded file ID.
+                        $('#loader1').hide();
+                        $('#done').html('uploaded to drive as ' + GetFilename($("#xlsx_iframe").attr('href')) + '.xlsx');
+                    };
+                    xhr.send(form);
+                }
             };
-            xhr.send(form);
+            xhr.send();
         }
     </script>
     <script async defer src="https://apis.google.com/js/api.js" onload="this.onload=function(){};handleClientLoad()"

@@ -10,30 +10,39 @@ from PIL import Image
 import numpy as np
 import requests
 import json
+from datetime import datetime
 
 
 def predict(file):
     content_type = file.content_type
+    file_name = file.filename
+    file_name, _ = os.path.splitext(file.filename)
+    file_name = file_name + '_' + str(datetime.now())
 
     if content_type == 'application/pdf':
         pages = convert_from_bytes(file.file.read())
         image = pages[0]
+        file_name = file_name[:-3] + '.png'
     elif content_type.startswith('image'):
         image = Image.open(file.file)
     else:
         return 'unknown file type'
 
+    os.mkdir(os.path.join('results', file_name))
+    image.save(os.path.join('results', file_name, 'image.png'))
+
     # json_data = get_text_boxes(image, file.filename)
     with open('sample/Sample24_0.json') as f:
         json_data = json.load(f)
+
+    with open(os.path.join('results', file_name, 'ocr.json'), 'w') as fout:
+        json.dump(json_data, fout)
 
     print("OCR done")
 
     # False to provide a path with only test data
     data_loader = DataLoader(json_data, model_params,
                              update_dict=False, load_dictionary=True)
-    num_words = max(20000, data_loader.num_words)
-    num_classes = data_loader.num_classes
 
     data = data_loader.fetch_validation_data()
 
@@ -41,18 +50,18 @@ def predict(file):
     model_output_val = np.array(model_output_val)[0]
 
     shape = data['shape']
-    file_name = data['file_name'][0]  # use one single file_name
-    bboxes = data['bboxes'][file_name]
+    fileName = data['file_name'][0]  # use one single file_name
+    bboxes = data['bboxes'][fileName]
 
     vis_bbox(data_loader, image, np.array(data['grid_table'])[0],
-             np.array(data['gt_classes'])[0], model_output_val, file_name,
+             np.array(data['gt_classes'])[0], model_output_val, fileName,
              np.array(bboxes), shape)
 
     logits = model_output_val.reshape([-1, data_loader.num_classes])
 
     grid_table = np.array(data['grid_table'])[0]
     gt_classes = np.array(data['gt_classes'])[0]
-    word_ids = data['word_ids'][file_name]
+    word_ids = data['word_ids'][fileName]
     data_input_flat = grid_table.reshape([-1])
 
     c_threshold = 0.5
@@ -65,7 +74,6 @@ def predict(file):
             inf_id = np.argmax(logits[i])
             if inf_id and word_ids[i] != []:
                 text, bounding_box = idTotext(word_ids[i], json_data)
-                print(word_ids[i])
                 if not(word_ids[i] in unique_id):
                     final_output.append({
                         "class_name": data_loader.classes[inf_id],
@@ -75,19 +83,16 @@ def predict(file):
                         "confidence": max(logits[i])
                     })
                     unique_id.append(word_ids[i])
-                    print ("jainam", word_ids[i])
                 else:
                     for item in range(0, len(final_output)):
                         if(final_output[item]["id"] == word_ids[i]):
                             if final_output[item]["confidence"] < max(logits[i]):
-                                print(final_output[item]["confidence"], max(logits[i]))
                                 final_output[item]["confidence"] = max(logits[i])
-                                print('final ', final_output[item]["confidence"])
-                                print('came here')
 
     payload = {
         "model_output": final_output,
-        "all_classes": data_loader.classes
+        "all_classes": data_loader.classes,
+        "filename": file_name
     }
 
     url = "http://localhost:8001/getXLSX"
@@ -97,8 +102,10 @@ def predict(file):
                             )
 
     response_body = response.content
-    with open('sample.xlsx', 'wb') as f:
-        f.write(response_body)
+    with open(os.path.join('results', file_name, 'result.xlsx'), 'wb') as fout:
+        fout.write(response_body)
+
+    return os.path.join('results', file_name, 'result.xlsx')
 
 def idTotext(id, json_data):
     for text_box in json_data['text_boxes']:
