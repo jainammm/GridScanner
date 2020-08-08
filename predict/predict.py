@@ -79,7 +79,8 @@ def predict(file):
     url = "http://localhost:8001/getXLSX"
 
     response = requests.get(url,
-                            data=payload)
+                            json=payload
+                            )
 
 
 def idTotext(id, json_data):
