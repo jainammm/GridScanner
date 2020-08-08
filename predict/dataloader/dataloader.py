@@ -99,7 +99,6 @@ class DataLoader():
         self.special_dict = {'*', '='} # map texts to specific tokens        
         
         ## 1.1> load words and their location/class as training/validation docs and labels 
-        # self.training_doc_files = self._get_filenames(self.doc_path)
         self.training_docs, self.training_labels = self.load_data(json_data, update_dict=update_dict) # TBD: optimize the update dict flag
         
         # polish and load dictionary/word_to_index/index_to_word as file
@@ -124,9 +123,7 @@ class DataLoader():
         self.validation_docs = [self.training_docs[x] for x in selected_validation_index]
         self.training_docs = [self.training_docs[x] for x in selected_training_index]
         self.validation_labels = self.training_labels
-        print('\n\nDATASET: %d vocabularies, %d target classes'%(len(self.dictionary), len(self.classes)))
         
-        self.data_shape_statistic() # show data shape static
         self.rows, self.cols = self.rows_ulimit, self.cols_ulimit
                 
         self.validation_data_tobe_fetched = [i for i in range(len(self.validation_docs))]
@@ -173,152 +170,24 @@ class DataLoader():
             rows = max(self.rows_target, real_rows)
             cols = max(self.rows_target, real_cols)
             
-            grid_table, gt_classes, bboxes, label_mapids, bbox_mapids, file_names, updated_cols, ps_indices_x, ps_indices_y = \
+            grid_table, gt_classes, bboxes, label_mapids, bbox_mapids, file_names, updated_cols, word_ids = \
                 self._positional_mapping(validation_docs, self.validation_labels, rows, cols)   
             if updated_cols > cols:
                 print('Validation grid EXPAND size: ({},{}) from ({},{})'\
                       .format(rows, updated_cols, rows, cols))
-                grid_table, gt_classes, bboxes, label_mapids, bbox_mapids, file_names, _, ps_indices_x, ps_indices_y = \
-                    self._positional_mapping(validation_docs, self.validation_labels, rows, updated_cols, update_col=False)     
+                grid_table, gt_classes, bboxes, label_mapids, bbox_mapids, file_names, _, word_ids = \
+                    self._positional_mapping(validation_docs, self.validation_labels, rows, updated_cols)     
             
             ## load image and generate corresponding @ps_1dindices
             images, ps_1d_indices = [], []
-            break
-            
-        def build_gt_pyramid(self, gt_classes):
-            gt_classes = np.array(gt_classes)
-            
-            rate = 4 # self.pooling_factor
-            b, h, w = np.shape(gt_classes)
-            same_padding_left = (rate-w%rate)//2 if w%rate else 0
-            same_padding_right = rate-(rate-w%rate)//2 if w%rate else 0
-            same_padding_top = (rate-h%rate)//2 if h%rate else 0
-            same_padding_bottom = rate-(rate-h%rate)//2 if h%rate else 0
-            for gt_class in gt_classes:
-                pad_v =  np.pad(gt_class, ((same_padding_top, same_padding_bottom), (0,0)), 'constant', constant_values=((0,0),(0,0)))
-                pad_h =  np.pad(gt_class, ((0,0), (same_padding_left, same_padding_right)), 'constant', constant_values=((0,0),(0,0)))
-                
-                ## find mask range for each single entity
-                num_entities = np.max(gt_classes) / self.num_classes
-                entity_ranges = [[] for _ in range(0,num_entities)]
-                for i in range(1, num_entities):
-                    if i % self.num_classes: # only consider non <DontCare> classes
-                        range_y, range_x = np.where(gt_classes==i)
-                        # entity_ranges[i] = [top, left, bottom, right, height, width]
-                        entity_ranges[i] = [min(range_y), min(range_x), max(range_y), max(range_x), 
-                                            max(range_y) - min(range_y), max(range_x) - min(range_x)] 
-                           
-                
+            break                                 
         
         batch = {'grid_table': np.array(grid_table), 'gt_classes': np.array(gt_classes), 
                  'data_image': np.array(images), 'ps_1d_indices': np.array(ps_1d_indices), # @images and @ps_1d_indices are only used for CUTIEv2
-                 'bboxes': bboxes, 'label_mapids': label_mapids, 'bbox_mapids': bbox_mapids,
+                 'bboxes': bboxes, 'word_ids': word_ids, 'label_mapids': label_mapids, 'bbox_mapids': bbox_mapids,
                  'file_name': file_names, 'shape': [rows,cols]}
         return batch
-    
-    def _form_label_matrix(self, gt_classes, target_h, target_w):
-        """
-        build gt_classes and gt_masks with given target featuremap shape (height, width)
-        by inspecting bboxes regions (x,y,w,h)
-        for table / row / column identity segmentation
-        """
-        def has_entity_with_augmentation(entity_ranges, roi, use_jittering=False):                    
-            ## find mask with maximum overlap
-            max_iou = 0
-            max_idx = None
-            roi_t, roi_l, roi_b, roi_r = roi
-            roi_h = roi_b - roi_t
-            roi_w = roi_r - roi_l
-            roi_cy = roi_t + roi_h/2
-            roi_cx = roi_l + roi_w/2
-            for idx, entity in enumerate(entity_ranges):
-                if len(entity):
-                    t, l, b, r, h, w = entity
-                    if l>roi_l and r<roi_r and t>roi_t and b<roi_b: # overlap 1
-                        iou = h*w / (roi_h*roi_w)
-                    elif l<roi_l and r>roi_r and t<roi_t and b>roi_b: # overlap 2
-                        iou = roi_h*roi_w / (h*w)
-                    elif l>roi_r or t>roi_b or b<roi_t or r<roi_l: # no intersection
-                        continue
-                    else:
-                        iou = min(h*w, roi_h*roi_w) / max(h*w, roi_h*roi_w)
-                        
-                    # TBD: add jittering augmentation method  
-                    if use_jittering:
-                        pass                          
-                    if iou > max_iou:
-                        max_idx = idx
-                        max_iou = iou
-                        
-            ## check centrality / containment / uniqueness
-            t, l, b, r, h, w = entity[idx]
-            cy = t + h/2
-            cx = l + w/2
-            if roi_t+h/3 < cy and cy < toi_b-h/3 and roi_l+w/3 < cx and cx < roi_r-w/3: # centrality
-                if (w > h and roi_w > w*0.9) or (w < h and roi_h > h*0.9): # containment
-                    if True: # uniqueness is already checked with maixmum IOU
-                        return True
-            return False                 
-    
-        shape = gt_classes.shape
-        rate_v = shape[0] / target_h
-        rate_h = shape[1] / target_w
-        dst_classes = [[[] for i in range(target_h)] for j in range(target_w)]
-        dst_masks = [[[] for i in range(target_h)] for j in range(target_w)]
-        for i in range(target_h):
-            for j in range(target_w):
-                roi = [rate_h*j, rate_v*i, rate_h*(j+1), rate_v*(i+1)] # [top, left, bottom, right]
-                
-                dst_classes[i][j] = has_entity_with_augmentation(entity_ranges, roi, False)
-                
-                mask = gt_classes[roi[1]:roi[3], roi[0]:roi[2]]
-                dst_masks[i][j] = mask if dst_classes[i][j] else np.zeros(np.shape(mask))
-        
-        return np.array(dst_classes), np.array(dst_masks)
-        
-    def data_shape_statistic(self):        
-        def shape_statistic(docs):
-            res_all = defaultdict(int)
-            res_row = defaultdict(int)
-            res_col = defaultdict(int)
-            for doc in docs:
-                rows, cols, _, _ = self._cal_rows_cols([doc])
-                res_all[rows] += 1
-                res_all[cols] += 1
-                res_row[rows] += 1
-                res_col[cols] += 1
-            res_all = sorted(res_all.items(), key=lambda x:x[0], reverse=True)
-            res_row = sorted(res_row.items(), key=lambda x:x[0], reverse=True)
-            res_col = sorted(res_col.items(), key=lambda x:x[0], reverse=True)
-            return res_all, res_row, res_col
-        vss, vss_r, vss_c = shape_statistic(self.validation_docs)
-        print("\nValidation statistic: ", vss)
-        print("\t num: ", len(self.validation_docs))
-        print("\t rows statistic: ", vss_r)
-        print("\t cols statistic: ", vss_c)
-        
-        ## remove data samples not matching the training principle
-        def data_laundry(docs):
-            idx = 0
-            while idx < len(docs):
-                rows, cols, _, _ = self._cal_rows_cols([docs[idx]])
-                if rows > self.rows_ulimit or cols > self.cols_ulimit:
-                    del docs[idx]
-                else:
-                    idx += 1
-        if self.data_laundry:
-            print("\nRemoving grids with shape larger than ({},{}).".format(self.rows_ulimit, self.cols_ulimit))
-            data_laundry(self.training_docs)
-            data_laundry(self.validation_docs)
-            data_laundry(self.training_docs)
-        
-            tss, tss_r, tss_c = shape_statistic(self.training_docs) # training shape static
-            vss, vss_r, vss_c = shape_statistic(self.validation_docs)
-            print("Validation statistic after laundary: ", vss)
-            print("\t num: ", len(self.validation_docs))
-            print("\t rows statistic: ", vss_r)
-            print("\t cols statistic: ", vss_c)
-    
+   
     def _positional_mapping(self, docs, labels, rows, cols):
         """
         docs in format:
@@ -330,6 +199,7 @@ class DataLoader():
         ps_indices_x = [] # positional sampling indices
         ps_indices_y = [] # positional sampling indices
         bboxes = {}
+        word_ids = {}
         label_mapids = []
         bbox_mapids = [] # [{}, ] bbox identifier, each id with one or multiple bbox/bboxes
         file_names = []
@@ -341,9 +211,10 @@ class DataLoader():
             ps_x = np.zeros([rows, cols_e], dtype=np.int32)
             ps_y = np.zeros([rows, cols_e], dtype=np.int32)
             bbox = [[] for c in range(cols_e) for r in range(rows)]
+            word_ids_ = [[] for c in range(cols_e) for r in range(rows)]
             bbox_id, bbox_mapid = 0, {} # one word in one or many positions in a bbox is mapped in bbox_mapid
             label_mapid = [[] for _ in range(self.num_classes)] # each class is connected to several bboxes (words)
-            drawing_board = np.zeros([rows, cols_e], dtype=str)
+
             for item in doc:
                 file_name = item[0]
                 text = item[1]
@@ -355,63 +226,36 @@ class DataLoader():
                 entity_id, class_id = self._dress_class(file_name, word_id, labels)
                 
                 bbox_id += 1
-#                 if self.fill_bbox: # TBD: overlap avoidance
-#                     top = int(rows * y_top / image_h)
-#                     bottom = int(rows * y_bottom / image_h)
-#                     left = int(cols * x_left / image_w)
-#                     right = int(cols * x_right / image_w)
-#                     grid_table[top:bottom, left:right] = dict_id  
-#                     grid_label[top:bottom, left:right] = class_id  
-#                      
-#                     label_mapid[class_id].append(bbox_id)
-#                     for row in range(top, bottom):
-#                         for col in range(left, right):
-#                             bbox_mapid[row*cols+col] = bbox_id
-#                      
-#                     for y in range(top, bottom):
-#                         for x in range(left, right):
-#                             bbox[y][x] = [x_left, y_top, x_right-x_left, y_bottom-y_top]
-                label_mapid[class_id].append(bbox_id)    
-                
-                #v_c = (y_top - top + (y_bottom-y_top)/2) / (bottom-top)
-                #h_c = (x_left - left + (x_right-x_left)/2) / (right-left)
-                #v_c = (y_top + (y_bottom-y_top)/2) / bottom
-                #h_c = (x_left + (x_right-x_left)/2) / right 
-                #v_c = (y_top-top) / (bottom-top)
-                #h_c = (x_left-left) / (right-left)
-                #v_c = (y_top) / (bottom)
-                #h_c = (x_left) / (right)
+                label_mapid[class_id].append(bbox_id)   
+
                 box_y = y_top + (y_bottom-y_top)/2
                 box_x = x_left # h_l is used for image feature map positional sampling
                 v_c = (y_top - top + (y_bottom-y_top)/2) / (bottom-top)
                 h_c = (x_left - left + (x_right-x_left)/2) / (right-left) # h_c is used for sorting items
                 row = int(rows * v_c) 
                 col = int(cols * h_c) 
-                items.append([row, col, [box_y, box_x], [v_c, h_c], file_name, dict_id, class_id, entity_id, bbox_id, [x_left, y_top, x_right-x_left, y_bottom-y_top]])                       
+                items.append([row, col, [box_y, box_x], [v_c, h_c], file_name, dict_id,
+                    class_id, entity_id, bbox_id, [x_left, y_top, x_right-x_left, y_bottom-y_top], word_id])                       
             
             items.sort(key=lambda x: (x[0], x[3], x[5])) # sort according to row > h_c > bbox_id
             for item in items:
-                row, col, [box_y, box_x], [v_c, h_c], file_name, dict_id, class_id, entity_id, bbox_id, box = item
+                row, col, [box_y, box_x], [v_c, h_c], file_name, dict_id, class_id, entity_id, bbox_id, box, word_id = item
                 entity_class_id = entity_id*self.num_classes + class_id
                 
                 while col < cols and grid_table[row, col] != 0:
                     col += 1            
-                
-                # self.pm_strategy 0: skip if overlap
-                # self.pm_strategy 1: shift to find slot if overlap
-                # self.pm_strategy 2: expand grid table if overlap
+
                 if self.pm_strategy == 0:
                     if col == cols:                     
                         print('overlap in {} row {} r{}c{}!'.
                               format(file_name, row, rows, cols))
-                        #print(grid_table[row,:])
-                        #print('overlap in {} <{}> row {} r{}c{}!'.
-                        #      format(file_name, self.index_to_word[dict_id], row, rows, cols))
+
                     else:
                         grid_table[row, col] = dict_id
                         grid_label[row, col] = entity_class_id                       
                         bbox_mapid[row*cols+col] = bbox_id                       
-                        bbox[row*cols+col] = box   
+                        bbox[row*cols+col] = box
+                        word_ids_[row*cols+col] = word_id
                 elif self.pm_strategy==1 or self.pm_strategy==2:
                     ptr = 0
                     if col == cols: # shift to find slot to drop the current item
@@ -440,6 +284,7 @@ class DataLoader():
                     ps_y[row, col] = box_y
                     bbox_mapid[row*cols+col] = bbox_id     
                     bbox[row*cols+col] = box
+                    word_ids_[row*cols+col] = word_id
                 
             cols = self._fit_shape(cols)
             grid_table = grid_table[..., :cols]
@@ -447,73 +292,18 @@ class DataLoader():
             ps_x = np.array(ps_x[..., :cols])
             ps_y = np.array(ps_y[..., :cols])
             
-            if DEBUG:
-                self.grid_visualization(file_name, grid_table, grid_label)
-            
             grid_tables.append(np.expand_dims(grid_table, -1)) 
             gird_labels.append(grid_label) 
             ps_indices_x.append(ps_x)
             ps_indices_y.append(ps_y)
             bboxes[file_name] = bbox
+            word_ids[file_name] = word_ids_
             label_mapids.append(label_mapid)
             bbox_mapids.append(bbox_mapid)
             file_names.append(file_name)
             
-        return grid_tables, gird_labels, bboxes, label_mapids, bbox_mapids, file_names, cols, ps_indices_x, ps_indices_y
-    
-    def _positional_sampling(self, path, file_names, ps_indices_x, ps_indices_y, updated_cols):
-        images, ps_1d_indices = [], []
-        
-        ## load image and generate corresponding @ps_1dindices
-        max_h, max_w = 0, updated_cols
-        for i in range(len(file_names)):
-            file_name = file_names[i]
-            file_path = join(path, file_name) # TBD: ensure image is upright
-            ps_1d_x = np.array(ps_indices_x[i], dtype=np.float32).reshape([-1])
-            ps_1d_y = np.array(ps_indices_y[i], dtype=np.float32).reshape([-1])
-            
-            image = cv2.imread(file_path)
-            if image is not None:
-                h, w, _ = image.shape # [h,w,c]
-                factor = max_w / w
-                
-                h = int(h*factor)
-                ps_1d_x *= factor # TBD: implement more accurate mapping method rather than nearest neighbor, since the .4 or .6 leads to two different sampling results
-                ps_1d_y *= factor                
-                
-                ps_1d = np.int32(np.floor(ps_1d_x) + np.floor(ps_1d_y) * max_w)
-                max_items = max_w * h - 1
-                for i in range(len(ps_1d)):
-                    if ps_1d[i] > max_items - 1:
-                        ps_1d[i] = max_items - 1
-                    
-                
-                image = cv2.resize(image, (max_w, h))
-                image = (image-127.5) / 255
-            else:
-                #print('Warning: {} image not found!'.format(file_path))
-                print('{} ignored due to image file not found.'.format(file_path))
-                image, ps_1d = None, None
-                break
-                
-            if image is not None and ps_1d is not None: # ignore data with no images                 
-                ps_1d_indices.append(ps_1d)
-                images.append(image)
-                h,w,c = image.shape
-                if h > max_h:
-                    max_h = h
-            else:
-                pass
-                #print('{} ignored due to image file not found.'.format(file_path))
-                
-        ## pad image to the same shape
-        for i,image in enumerate(images): 
-            pad_img = np.zeros([max_h, max_w, 3], dtype=image.dtype)
-            pad_img[:image.shape[0], :, :] = image
-            images[i] = pad_img
-        
-        return images, ps_1d_indices
-    
+        return grid_tables, gird_labels, bboxes, label_mapids, bbox_mapids, file_names, cols, word_ids
+      
     def load_data(self, data, update_dict=False):
         """
         label_dressed in format:
@@ -631,14 +421,6 @@ class DataLoader():
                 _, _, _, [x_left, y_top, x_right, y_bottom] = line
                 row = int(max_rows * (y_top - top + (y_bottom-y_top)/2) / (bottom-top))
                 col = int(max_cols * (x_left - left + (x_right-x_left)/2) / (right-left))
-                #row = int(max_rows * (y_top + (y_bottom-y_top)/2) / (bottom))
-                #col = int(max_cols * (x_left + (x_right-x_left)/2) / (right))
-                #row = int(max_rows * (y_top-top) / (bottom-top))
-                #col = int(max_cols * (x_left-left) / (right-left))
-                #row = int(max_rows * (y_top) / (bottom))
-                #col = int(max_cols * (x_left) / (right))
-                #row = int(max_rows * (y_top + (y_bottom-y_top)/2) / bottom)  
-                #col = int(max_cols * (x_left + (x_right-x_left)/2) / right) 
                 
                 while col < max_cols and grid_table[row, col] != 0: # shift to find slot to drop the current item
                     col += 1
@@ -693,9 +475,7 @@ class DataLoader():
                     cnt_r[row] += 1
                     content_dressed_right.append([file_name, dressed_text, word_id, [x_left, y_top, x_right, y_bottom], \
                                       [left, top, right, bottom], max_rows, max(max(cnt_r.values()), self.cols_segment)])
-            #print(sorted(cnt.items(), key=lambda x:x[1], reverse=True))
-            #print(sorted(cnt_l.items(), key=lambda x:x[1], reverse=True))
-            #print(sorted(cnt_r.items(), key=lambda x:x[1], reverse=True))
+
             if max(cnt_l.values()) < 2*self.cols_segment:
                 data.append(content_dressed_left)
             if max(cnt_r.values()) < 2*self.cols_segment: # avoid OOM, which tends to happen in the right side
@@ -812,39 +592,3 @@ class DataLoader():
         h = y_bottom - y_top
         return int(x_left), int(y_top), int(x_right), int(y_bottom)       
     
-    def _get_filenames(self, data_path):
-        files = []
-        for dirpath,dirnames,filenames in walk(data_path):
-            for filename in filenames:
-                file = join(dirpath,filename)
-                if file.endswith('csv') or file.endswith('json'):
-                    files.append(file)
-        return files       
-            
-    def grid_visualization(self, file_name, grid, label):
-        import cv2
-        height, width = np.shape(grid)
-        grid_box_h, grid_box_w = 20, 40
-        palette = np.zeros([height*grid_box_h, width*grid_box_w, 3], np.uint8)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        gt_color = [[255, 250, 240], [152, 245, 255], [127, 255, 212], [100, 149, 237], 
-                    [192, 255, 62], [175, 238, 238], [255, 130, 171], [240, 128, 128], [255, 105, 180]]
-        cv2.putText(palette, file_name+"({},{})".format(height,width), (grid_box_h,grid_box_w), font, 0.6, [255,0,0])  
-        for h in range(height):
-            cv2.line(palette, (0,h*grid_box_h), (width*grid_box_w, h*grid_box_h), (100,100,100))
-            for w in range(width):
-                if grid[h,w]:
-                    org = (int((w+1)*grid_box_w*0.7),int((h+1)*grid_box_h*0.9))
-                    color = gt_color[label[h,w]]
-                    cv2.putText(palette, self.index_to_word[grid[h,w]], org, font, 0.4, color)        
-        
-        img = cv2.imread(self.doc_path+'/'+file_name)
-        if img is not None:
-            shape = list(img.shape)
-            max_len = 768
-            factor = max_len / max(shape)
-            shape[0], shape[1] = [int(s*factor) for s in shape[:2]]
-            img = cv2.resize(img, (shape[1], shape[0]))  
-            cv2.imshow("img", img)
-        cv2.imshow("grid", palette)
-        cv2.waitKey(0)
