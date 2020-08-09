@@ -16,7 +16,7 @@ This module has a Web user interface to use GridScanner. It employs two other mo
 * Go to http://127.0.0.1:8000 to access the UI.
 > Run using docker
 * Build doker image using `docker build -t gridscanner .`
-* Run using `docker run -it --rm -p 8000:8000 gridscanner:latest`
+* Run using `docker run --env-file=.env.docker -it --rm -p 8000:8000 gridscanner:latest`
 * The app ui is exposed at http://localhost:8000
 
 ## Challenges faced

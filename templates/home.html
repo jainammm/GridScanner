@@ -9,12 +9,10 @@
     <title>Grid Scanner</title>
 
     <link href="static/css/style.css" rel="stylesheet">
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0-beta.2/css/bootstrap.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0-beta.2/css/bootstrap.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/12.1.2/css/intlTelInput.css">
     <link rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-nice-select/1.1.0/css/nice-select.min.css">
 
 </head>
 
@@ -25,12 +23,10 @@
             <!-- Tittle -->
             <div class="tittle">
                 <h2>Grid Scanner</h2>
-                <p>In order to use this service, you have to complete this verification process</p>
             </div>
             <!-- fieldsets -->
             <fieldset>
-                <h3>Verify Your Identity</h3>
-                <h6>Please upload any of these documents to verify your Identity.</h6>
+                <h6>Please upload Invoice documents to generate E-Invoice.</h6>
                 <img id="blah" src="#" alt="your image" />
                 <div class="input-group">
                     <form id="fileinfo" enctype="multipart/form-data" method="post" class="custom-file">
@@ -47,6 +43,8 @@
                 <h3>Scan Result Prepared in Excel File</h3>
 
                 <a id="xlsx_iframe" class="action-button">Download</a>
+                <br>
+                <br>
 
                 <div id="content"></div>
                 <button id="authorize-button" class="action-button" style="display: none;margin: auto;">Sign In To
@@ -56,8 +54,7 @@
                 <button id="signout-button" class="action-button" style="display: none;margin: auto;">Sign Out from From
                     Google</button>
                 <br>
-                <button id="upload-button" onclick="UploadToDrive()" class="action-button"
-                    style="display: none;margin: auto;">Upload to Drive</button>
+                <button id="upload-button" onclick="UploadToDrive()" class="action-button" style="display: none;margin: auto;">Upload to Drive</button>
                 <div id="loader1" class="loader"></div>
                 <div id="done"></div>
                 <br>
@@ -109,7 +106,7 @@
                 discoveryDocs: discoveryDocs,
                 clientId: clientId,
                 scope: scopes
-            }).then(function () {
+            }).then(function() {
                 // Listen for sign-in state changes.
                 gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
 
@@ -159,7 +156,7 @@
             var xhr = new XMLHttpRequest();
             xhr.open('GET', $("#xlsx_iframe").attr('href'), true);
             xhr.responseType = 'blob';
-            xhr.onload = function (e) {
+            xhr.onload = function(e) {
                 if (this.status == 200) {
                     file = this.response;
                     var metadata = {
@@ -170,7 +167,9 @@
 
                     var accessToken = gapi.auth.getToken().access_token; // Here gapi is used for retrieving the access token.
                     var form = new FormData();
-                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                    form.append('metadata', new Blob([JSON.stringify(metadata)], {
+                        type: 'application/json'
+                    }));
                     form.append('file', file);
 
                     var xhr = new XMLHttpRequest();
@@ -188,9 +187,8 @@
             xhr.send();
         }
     </script>
-    <script async defer src="https://apis.google.com/js/api.js" onload="this.onload=function(){};handleClientLoad()"
-        onreadystatechange="if (this.readyState === 'complete') this.onload()">
-        </script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="this.onload=function(){};handleClientLoad()" onreadystatechange="if (this.readyState === 'complete') this.onload()">
+    </script>
 
 </body>
 
