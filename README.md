@@ -11,6 +11,7 @@ This module has a Web user interface to use GridScanner. It employs two other mo
 
 ## How to run
 * Run `pip install -r requrements.txt` to install required python libraries.
+* Export Environment Variables using `source .env`
 * Run `uvicorn app:app` to start the server.
 * Go to http://127.0.0.1:8000 to access the UI.
 
