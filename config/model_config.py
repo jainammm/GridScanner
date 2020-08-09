@@ -13,4 +13,7 @@ class modelParams:
         self.tensorflow_signature_name = \
             os.environ.get("TENSORFLOW_SIGNATURE_NAME", 'serving_default')
 
+        self.invoiceholder_host = os.environ.get("INVOICEHOLDER_HOST", 'localhost')
+        self.invoiceholder_port = os.environ.get("INVOICEHOLDER_PORT", 8001)
+
 model_params = modelParams()

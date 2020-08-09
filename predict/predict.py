@@ -59,7 +59,7 @@ def predict(image, filename):
     final_output = []
     unique_id = []
 
-    # Get class label texts with high confidence 
+    # Get class label texts with high confidence
     for i in range(len(data_input_flat)):
         if max(logits[i]) > c_threshold:
             inf_id = np.argmax(logits[i])
@@ -87,7 +87,8 @@ def predict(image, filename):
         "filename": file_name
     }
 
-    url = "http://localhost:8001/getXLSX"
+    url = 'http://{host}:{port}/getXLSX'.format(
+        host=model_params.invoiceholder_host, port=model_params.invoiceholder_port)
 
     # Get resullt from Placeholder API
     response = requests.get(url,
