@@ -4,6 +4,7 @@ ENV PYTHONUNBUFFERED 1
 
 RUN apt-get update
 RUN apt-get install -y python-opencv
+RUN apt-get install -y poppler-utils
 
 RUN mkdir /code
 WORKDIR /code
